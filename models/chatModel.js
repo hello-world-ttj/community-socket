@@ -17,3 +17,4 @@ const chatModel = mongoose.Schema(
 module.exports = (conn) => {
   return conn.models.Chat || conn.model('Chat', chatModel);
 };
+

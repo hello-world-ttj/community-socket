@@ -1,5 +1,5 @@
 const responseHandler = require("../helpers/responseHandler");
-const Chat = require("../models/chatModel");
+// const Chat = require("../models/chatModel");
 const Message = require("../models/messageModel");
 const User = require("../models/userModel");
 const { getReceiverSocketId, chatNamespace, io } = require("../socket");
@@ -7,11 +7,20 @@ const { getReceiverSocketId, chatNamespace, io } = require("../socket");
 // const validations = require("../validations");
 
 exports.sendMessage = async (req, res) => {
-  const { content, isGroup, feed } = req.body;
+  // const { content, isGroup, feed } = req.body;
+  // const to = req.params.id;
+  // const from = req.userId;
+
+  const { content, isGroup, feed, from: fromBody } = req.body; 
   const to = req.params.id;
-  const from = req.userId;
+  const from = fromBody;
 
   try {
+
+    if (!from || !content) {
+      return res.status(400).json({ message: "`from` and `content` are required." });
+    }
+
     let chat;
 
     if (isGroup) {
@@ -35,11 +44,12 @@ exports.sendMessage = async (req, res) => {
     if (feed) {
       newMessageData.feed = feed;
     }
-
+     const Message = req.db.model("Message")
     const newMessage = new Message(newMessageData);
 
     if (!chat) {
       if (isGroup) {
+        const Chat = req.db.model("Chat")
         chat = new Chat({
           _id: to,
           participants: [from],
@@ -47,6 +57,7 @@ exports.sendMessage = async (req, res) => {
           unreadCount: {},
         });
       } else {
+        const Chat = req.db.model("Chat")
         chat = new Chat({
           participants: [from, to],
           lastMessage: newMessage._id,
@@ -172,34 +183,35 @@ exports.sendMessage = async (req, res) => {
 //   }
 // };
 
-// exports.getChats = async (req, res) => {
-//   try {
-//     const { pageNo = 1, limit = 10 } = req.query;
-//     const skipCount = 10 * (pageNo - 1);
-//     const chats = await Chat.find({ participants: req.userId, isGroup: false })
-//       .skip(skipCount)
-//       .limit(limit)
-//       .populate("participants", "name image")
-//       .populate("lastMessage")
-//       .sort({ lastMessage: -1, _id: 1 })
-//       .exec();
+exports.getChats = async (req, res) => {
+  try {
+    const { pageNo = 1, limit = 10 } = req.query;
+    const skipCount = 10 * (pageNo - 1);
+    const Chat = req.db.model("Chat")
+    const chats = await Chat.find({ participants: req.userId, isGroup: false })
+      .skip(skipCount)
+      .limit(limit)
+      .populate("participants", "name image")
+      .populate("lastMessage")
+      .sort({ lastMessage: -1, _id: 1 })
+      .exec();
 
-//     const totalCount = await Chat.countDocuments({
-//       participants: req.userId,
-//       isGroup: false,
-//     });
+    const totalCount = await Chat.countDocuments({
+      participants: req.userId,
+      isGroup: false,
+    });
 
-//     return responseHandler(
-//       res,
-//       200,
-//       "Chat retrieved successfully!",
-//       chats,
-//       totalCount
-//     );
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error ${error.message}`);
-//   }
-// };
+    return responseHandler(
+      res,
+      200,
+      "Chat retrieved successfully!",
+      chats,
+      totalCount
+    );
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error ${error.message}`);
+  }
+};
 
 // exports.createGroup = async (req, res) => {
 //   try {
