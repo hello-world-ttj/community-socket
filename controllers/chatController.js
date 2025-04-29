@@ -1,6 +1,6 @@
 const responseHandler = require("../helpers/responseHandler");
 // const Chat = require("../models/chatModel");
-const Message = require("../models/messageModel");
+// const Message = require("../models/messageModel");
 const User = require("../models/userModel");
 const { getReceiverSocketId, chatNamespace, io } = require("../socket");
 // const sendInAppNotification = require("../utils/sendInAppNotification");
@@ -145,43 +145,46 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// exports.getBetweenUsers = async (req, res) => {
-//   const { id } = req.params;
-//   const { userId } = req;
-//   try {
-//     const messages = await Message.find({
-//       $or: [
-//         { from: id, to: userId },
-//         { from: userId, to: id },
-//       ],
-//     })
-//       .sort({ createdAt: 1, _id: 1 })
-//       .populate({
-//         path: "feed",
-//         select: "media",
-//       })
-//       .populate("product", "name image price");
 
-//     await Message.updateMany(
-//       { from: userId, to: id, status: { $ne: "seen" } },
-//       { $set: { status: "seen" } }
-//     );
+exports.getBetweenUsers = async (req, res) => {
+  const { id } = req.params;
+  const { userId } = req;
+  try {
+    const Message = req.db.model("Message")
+    const messages = await Message.find({
+      $or: [
+        { from: id, to: userId },
+        { from: userId, to: id },
+      ],
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .populate({
+        path: "feed",
+        select: "media",
+      })
+      .populate("product", "name image price");
 
-//     await Chat.updateOne(
-//       { participants: { $all: [id, userId] } },
-//       { $set: { [`unreadCount.${userId}`]: 0 } }
-//     );
+    await Message.updateMany(
+      { from: userId, to: id, status: { $ne: "seen" } },
+      { $set: { status: "seen" } }
+    );
+    const Chat = req.db.model("Chat")
 
-//     return responseHandler(
-//       res,
-//       200,
-//       "Messages retrieved successfully!",
-//       messages
-//     );
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error ${error.message}`);
-//   }
-// };
+    await Chat.updateOne(
+      { participants: { $all: [id, userId] } },
+      { $set: { [`unreadCount.${userId}`]: 0 } }
+    );
+
+    return responseHandler(
+      res,
+      200,
+      "Messages retrieved successfully!",
+      messages
+    );
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error ${error.message}`);
+  }
+};
 
 exports.getChats = async (req, res) => {
   try {
@@ -213,119 +216,122 @@ exports.getChats = async (req, res) => {
   }
 };
 
-// exports.createGroup = async (req, res) => {
-//   try {
-//     const { error } = validations.createGroupSchame.validate(req.body, {
-//       abortEarly: true,
-//     });
+exports.createGroup = async (req, res) => {
+  try {
+    // const { error } = validations.createGroupSchame.validate(req.body, {
+    //   abortEarly: true,
+    // });
 
-//     if (error) {
-//       return responseHandler(res, 400, `Invalid input: ${error.message}`);
-//     }
-//     const { groupName, groupInfo, chapter } = req.body;
+    // if (error) {
+    //   return responseHandler(res, 400, `Invalid input: ${error.message}`);
+    // }
+    const { groupName, groupInfo, chapter } = req.body;
 
-//     let { participantIds } = req.body;
+    let { participantIds } = req.body;
 
-//     if (participantIds[0] === "*") {
-//       participantIds = [];
-//       const users = await User.find({ chapter: chapter });
-//       participantIds = users.map((user) => user._id);
-//     }
+    if (participantIds[0] === "*") {
+      participantIds = [];
+      const users = await User.find({ chapter: chapter });
+      participantIds = users.map((user) => user._id);
+    }
+    const Chat = req.db.model("Chat")
+    const newChat = new Chat({
+      participants: participantIds,
+      groupName,
+      groupInfo,
+      isGroup: true,
+      unreadCount: participantIds.reduce((acc, userId) => {
+        acc[userId] = 0;
+        return acc;
+      }, {}),
+    });
 
-//     const newChat = new Chat({
-//       participants: participantIds,
-//       groupName,
-//       groupInfo,
-//       isGroup: true,
-//       unreadCount: participantIds.reduce((acc, userId) => {
-//         acc[userId] = 0;
-//         return acc;
-//       }, {}),
-//     });
+    await newChat.save();
 
-//     await newChat.save();
+    return responseHandler(
+      res,
+      201,
+      "Group chat created successfully!",
+      newChat
+    );
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error ${error.message}`);
+  }
+};
 
-//     return responseHandler(
-//       res,
-//       201,
-//       "Group chat created successfully!",
-//       newChat
-//     );
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error ${error.message}`);
-//   }
-// };
+exports.getGroupMessage = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId;
 
-// exports.getGroupMessage = async (req, res) => {
-//   const { id } = req.params;
-//   const userId = req.userId;
+  try {
+    const Message = req.db.model("Message")
+    const messages = await Message.find({
+      to: id,
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .populate("from", "name image");
 
-//   try {
-//     const messages = await Message.find({
-//       to: id,
-//     })
-//       .sort({ createdAt: 1, _id: 1 })
-//       .populate("from", "name image");
+    if (!messages.length) {
+      return responseHandler(res, 404, "No messages found in this group.");
+    }
 
-//     if (!messages.length) {
-//       return responseHandler(res, 404, "No messages found in this group.");
-//     }
+    await Message.updateMany(
+      { to: id, status: { $ne: "seen" }, from: { $ne: userId } },
+      { status: "seen" }
+    );
+    const Chat = req.db.model("Chat")
+    await Chat.updateOne(
+      { _id: id },
+      { $set: { [`unreadCount.${userId}`]: 0 } }
+    );
 
-//     await Message.updateMany(
-//       { to: id, status: { $ne: "seen" }, from: { $ne: userId } },
-//       { status: "seen" }
-//     );
+    return responseHandler(
+      res,
+      200,
+      "Group messages retrieved successfully!",
+      messages
+    );
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
 
-//     await Chat.updateOne(
-//       { _id: id },
-//       { $set: { [`unreadCount.${userId}`]: 0 } }
-//     );
+exports.getGroupList = async (req, res) => {
+  try {
+    const { pageNo = 1, limit = 10 } = req.query;
+    const skipCount = 10 * (pageNo - 1);
+    const Chat = req.db.model("Chat")
+    const group = await Chat.find({ isGroup: true, participants: req.userId })
+      .skip(skipCount)
+      .limit(limit)
+      .populate("lastMessage")
+      .sort({ createdAt: -1, _id: 1 })
+      .lean();
 
-//     return responseHandler(
-//       res,
-//       200,
-//       "Group messages retrieved successfully!",
-//       messages
-//     );
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
+    const totalCount = await Chat.countDocuments({
+      isGroup: true,
+      participants: req.userId,
+    });
+    const mappedData = group.map((item) => {
+      return {
+        _id: item._id,
+        groupName: item.groupName,
+        lastMessage: item.lastMessage?.content,
+        unreadCount: item.unreadCount[req.userId] || 0,
+      };
+    });
 
-// exports.getGroupList = async (req, res) => {
-//   try {
-//     const { pageNo = 1, limit = 10 } = req.query;
-//     const skipCount = 10 * (pageNo - 1);
-//     const group = await Chat.find({ isGroup: true, participants: req.userId })
-//       .skip(skipCount)
-//       .limit(limit)
-//       .populate("lastMessage")
-//       .sort({ createdAt: -1, _id: 1 })
-//       .lean();
-//     const totalCount = await Chat.countDocuments({
-//       isGroup: true,
-//       participants: req.userId,
-//     });
-//     const mappedData = group.map((item) => {
-//       return {
-//         _id: item._id,
-//         groupName: item.groupName,
-//         lastMessage: item.lastMessage?.content,
-//         unreadCount: item.unreadCount[req.userId] || 0,
-//       };
-//     });
-
-//     return responseHandler(
-//       res,
-//       200,
-//       `Group list found successfull..!`,
-//       mappedData,
-//       totalCount
-//     );
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
+    return responseHandler(
+      res,
+      200,
+      `Group list found successfull..!`,
+      mappedData,
+      totalCount
+    );
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
 
 // exports.getGroupListForAdmin = async (req, res) => {
 //   try {
