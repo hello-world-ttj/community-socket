@@ -498,6 +498,7 @@ exports.deleteGroup = async (req, res) => {
     if (!id) {
       return responseHandler(res, 400, `Group id is required`);
     }
+    const Chat = req.db.model("Chat")
     const deleteGroup = await Chat.findByIdAndDelete(id);
     if (deleteGroup) {
       return responseHandler(

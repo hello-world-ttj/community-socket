@@ -17,6 +17,6 @@ chatRoute
   .route("/group/:id")
   .put(chatController.editGroup)
   .get(chatController.getGroup)
-  // .delete(chatController.deleteGroup);
+  .delete(chatController.deleteGroup);
 
 module.exports = chatRoute;
