@@ -333,46 +333,46 @@ exports.getGroupList = async (req, res) => {
   }
 };
 
-// exports.getGroupListForAdmin = async (req, res) => {
-//   try {
-//     const { pageNo = 1, limit = 10, search } = req.query;
-//     const skipCount = 10 * (pageNo - 1);
-//     const filter = {
-//       isGroup: true,
-//     };
+exports.getGroupListForAdmin = async (req, res) => {
+  try {
+    const { pageNo = 1, limit = 10, search } = req.query;
+    const skipCount = 10 * (pageNo - 1);
+    const filter = {
+      isGroup: true,
+    };
 
-//     if (search) {
-//       filter.$or = [{ groupName: { $regex: search, $options: "i" } }];
-//     }
+    if (search) {
+      filter.$or = [{ groupName: { $regex: search, $options: "i" } }];
+    }
+    const Chat = req.db.model("Chat")
+    const group = await Chat.find(filter)
+      .skip(skipCount)
+      .limit(limit)
+      .sort({ createdAt: -1, _id: 1 })
+      .lean();
+    const totalCount = await Chat.countDocuments(filter);
+    const mappedData = group.map((item) => {
+      return {
+        _id: item._id,
+        groupName: item.groupName,
+        groupInfo: item.groupInfo,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        memberCount: item.participants.length,
+      };
+    });
 
-//     const group = await Chat.find(filter)
-//       .skip(skipCount)
-//       .limit(limit)
-//       .sort({ createdAt: -1, _id: 1 })
-//       .lean();
-//     const totalCount = await Chat.countDocuments(filter);
-//     const mappedData = group.map((item) => {
-//       return {
-//         _id: item._id,
-//         groupName: item.groupName,
-//         groupInfo: item.groupInfo,
-//         createdAt: item.createdAt,
-//         updatedAt: item.updatedAt,
-//         memberCount: item.participants.length,
-//       };
-//     });
-
-//     return responseHandler(
-//       res,
-//       200,
-//       `Group list found successfull..!`,
-//       mappedData,
-//       totalCount
-//     );
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
+    return responseHandler(
+      res,
+      200,
+      `Group list found successfull..!`,
+      mappedData,
+      totalCount
+    );
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
 
 // exports.getGroupDetails = async (req, res) => {
 //   try {
