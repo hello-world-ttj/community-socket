@@ -12,11 +12,11 @@ chatRoute.get("/group-message/:id", chatController.getGroupMessage);
 chatRoute.get("/between-users/:id", chatController.getBetweenUsers);
 chatRoute.get("/list-group", chatController.getGroupList);
 chatRoute.get("/admin/list-group", chatController.getGroupListForAdmin);
-// chatRoute.get("/group-details/:id", chatController.getGroupDetails);
-// chatRoute
-  // .route("/group/:id")
-  // .put(chatController.editGroup)
-  // .get(chatController.getGroup)
+chatRoute.get("/group-details/:id", chatController.getGroupDetails);
+chatRoute
+  .route("/group/:id")
+  .put(chatController.editGroup)
+  .get(chatController.getGroup)
   // .delete(chatController.deleteGroup);
 
 module.exports = chatRoute;

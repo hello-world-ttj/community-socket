@@ -4,7 +4,7 @@ const responseHandler = require("../helpers/responseHandler");
 const User = require("../models/userModel");
 const { getReceiverSocketId, chatNamespace, io } = require("../socket");
 // const sendInAppNotification = require("../utils/sendInAppNotification");
-// const validations = require("../validations");
+const validations = require("../validation/index");
 
 exports.sendMessage = async (req, res) => {
   // const { content, isGroup, feed } = req.body;
@@ -374,140 +374,140 @@ exports.getGroupListForAdmin = async (req, res) => {
   }
 };
 
-// exports.getGroupDetails = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     if (!id) {
-//       return responseHandler(res, 400, `Group id is required`);
-//     }
+exports.getGroupDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return responseHandler(res, 400, `Group id is required`);
+    }
+    const Chat = req.db.model("Chat")
+    const group = await Chat.findById(id)
+      .populate("participants", "name phone chapter memberId image")
+      .populate({
+        path: "participants",
+        populate: { path: "chapter" },
+      });
+    if (!group) {
+      return responseHandler(res, 404, `Group not found`);
+    }
 
-//     const group = await Chat.findById(id)
-//       .populate("participants", "name phone chapter memberId image")
-//       .populate({
-//         path: "participants",
-//         populate: { path: "chapter" },
-//       });
-//     if (!group) {
-//       return responseHandler(res, 404, `Group not found`);
-//     }
+    const groupInfo = {
+      groupName: group.groupName,
+      groupInfo: group.groupInfo,
+      memberCount: group.participants.length,
+    };
 
-//     const groupInfo = {
-//       groupName: group.groupName,
-//       groupInfo: group.groupInfo,
-//       memberCount: group.participants.length,
-//     };
+    const participantsData = group.participants.map((item) => {
+      let fullName = item.name;
+      return {
+        _id: item._id,
+        name: fullName,
+        phone: item.phone,
+        image: item.image,
+        chapter: item.chapter.name,
+        memberId: item.memberId ? item.memberId : null,
+        status: item.status,
+      };
+    });
+    return responseHandler(res, 200, `Group details`, {
+      groupInfo,
+      participantsData,
+    });
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
 
-//     const participantsData = group.participants.map((item) => {
-//       let fullName = item.name;
-//       return {
-//         _id: item._id,
-//         name: fullName,
-//         phone: item.phone,
-//         image: item.image,
-//         chapter: item.chapter.name,
-//         memberId: item.memberId ? item.memberId : null,
-//         status: item.status,
-//       };
-//     });
-//     return responseHandler(res, 200, `Group details`, {
-//       groupInfo,
-//       participantsData,
-//     });
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
+exports.editGroup = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return responseHandler(res, 400, `Group id is required`);
+    }
+    const { error } = validations.editGroupSchema.validate(req.body, {
+      abortEarly: true,
+    });
 
-// exports.editGroup = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     if (!id) {
-//       return responseHandler(res, 400, `Group id is required`);
-//     }
-//     const { error } = validations.editGroupSchema.validate(req.body, {
-//       abortEarly: true,
-//     });
+    if (error) {
+      return responseHandler(res, 400, `Invalid input: ${error.message}`);
+    }
 
-//     if (error) {
-//       return responseHandler(res, 400, `Invalid input: ${error.message}`);
-//     }
+    const { groupName, groupInfo, participantIds } = req.body;
+    const Chat = req.db.model("Chat")
+    const updateGroup = await Chat.findByIdAndUpdate(
+      id,
+      {
+        groupName,
+        groupInfo,
+        participants: participantIds,
+      },
+      { new: true }
+    );
+    if (updateGroup) {
+      return responseHandler(
+        res,
+        200,
+        "Group updated successfully!",
+        updateGroup
+      );
+    }
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
 
-//     const { groupName, groupInfo, participantIds } = req.body;
+exports.getGroup = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return responseHandler(res, 400, `Group id is required`);
+    }
+    const Chat = req.db.model("Chat")
+    const group = await Chat.findById(id).populate({
+      path: "participants",
+      select: "name phone chapter memberId",
+      populate: {
+        path: "chapter",
+        select: "name",
+        populate: {
+          path: "districtId",
+          select: "name",
+          populate: {
+            path: "zoneId",
+            select: "name",
+            populate: {
+              path: "stateId",
+              select: "name",
+            },
+          },
+        },
+      },
+    });
+    if (!group) {
+      return responseHandler(res, 404, `Group not found`);
+    }
+    return responseHandler(res, 200, `Group details`, group);
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
 
-//     const updateGroup = await Chat.findByIdAndUpdate(
-//       id,
-//       {
-//         groupName,
-//         groupInfo,
-//         participants: participantIds,
-//       },
-//       { new: true }
-//     );
-//     if (updateGroup) {
-//       return responseHandler(
-//         res,
-//         200,
-//         "Group updated successfully!",
-//         updateGroup
-//       );
-//     }
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
-
-// exports.getGroup = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     if (!id) {
-//       return responseHandler(res, 400, `Group id is required`);
-//     }
-
-//     const group = await Chat.findById(id).populate({
-//       path: "participants",
-//       select: "name phone chapter memberId",
-//       populate: {
-//         path: "chapter",
-//         select: "name",
-//         populate: {
-//           path: "districtId",
-//           select: "name",
-//           populate: {
-//             path: "zoneId",
-//             select: "name",
-//             populate: {
-//               path: "stateId",
-//               select: "name",
-//             },
-//           },
-//         },
-//       },
-//     });
-//     if (!group) {
-//       return responseHandler(res, 404, `Group not found`);
-//     }
-//     return responseHandler(res, 200, `Group details`, group);
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
-
-// exports.deleteGroup = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     if (!id) {
-//       return responseHandler(res, 400, `Group id is required`);
-//     }
-//     const deleteGroup = await Chat.findByIdAndDelete(id);
-//     if (deleteGroup) {
-//       return responseHandler(
-//         res,
-//         200,
-//         "Group deleted successfully!",
-//         deleteGroup
-//       );
-//     }
-//   } catch (error) {
-//     return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
-//   }
-// };
+exports.deleteGroup = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return responseHandler(res, 400, `Group id is required`);
+    }
+    const deleteGroup = await Chat.findByIdAndDelete(id);
+    if (deleteGroup) {
+      return responseHandler(
+        res,
+        200,
+        "Group deleted successfully!",
+        deleteGroup
+      );
+    }
+  } catch (error) {
+    return responseHandler(res, 500, `Internal Server Error: ${error.message}`);
+  }
+};
